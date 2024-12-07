@@ -2,16 +2,58 @@ package common
 
 import (
 	"fmt"
-	"io/ioutil"
-	"log"
+	"io"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"os"
 	"strings"
 )
 
-// GetData retrieves data used to solve day n
 func GetData(n int) ([]string, error) {
+
+	path := fmt.Sprintf("/tmp/data/%v", n)
+
+	// check if the data is already cached
+	if _, err := os.Stat(path); err == nil {
+
+		slog.Info("using cached data", "day", n, "path", path)
+
+		b, err := os.ReadFile(path)
+
+		if err != nil {
+			return nil, fmt.Errorf("could not read cached data: %v", err)
+		}
+
+		return strings.Split(string(b), "\n"), nil
+	}
+
+	data, err := getData(n)
+
+	if err != nil {
+		return nil, fmt.Errorf("could not get data: %v", err)
+	}
+
+	// create the cache directory if it does not exist
+	if _, err := os.Stat("/tmp/data"); os.IsNotExist(err) {
+		err = os.Mkdir("/tmp/data", 0755)
+		if err != nil {
+			return nil, fmt.Errorf("could not create cache directory: %v", err)
+		}
+	}
+
+	err = os.WriteFile(path, []byte(strings.Join(data, "\n")), 0644)
+
+	if err != nil {
+		return nil, fmt.Errorf("could not write data to cache: %v", err)
+	}
+
+	return data, nil
+
+}
+
+// GetData retrieves data used to solve day n
+func getData(n int) ([]string, error) {
 
 	var data []string
 
@@ -44,7 +86,7 @@ func GetData(n int) ([]string, error) {
 		return nil, err
 	}
 
-	b, err := ioutil.ReadAll(res.Body)
+	b, err := io.ReadAll(res.Body)
 
 	if err != nil {
 		return nil, fmt.Errorf("could not read response body: %v", err)
@@ -53,8 +95,6 @@ func GetData(n int) ([]string, error) {
 	defer res.Body.Close()
 
 	data = strings.Split(string(b), "\n")
-
-	log.Printf("got %v lines of input data", len(data))
 
 	return data, nil
 
